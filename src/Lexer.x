@@ -1,4 +1,3 @@
--- AlexLexerExample.x
 {
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -25,7 +24,8 @@ tokens :-
   \;                            { mkLx LxSep }
   \(                            { mkLx LxLParen }
   \)                            { mkLx LxRParen }
-  [\=\+\-\*\/\^]                  { mkLx LxVarSym }
+  $smallalpha$alpha*            { mkLx LxVarId }
+  [\=\+\-\*\/\^]                { mkLx LxVarSym }
 
 {
 data Lexeme
@@ -34,6 +34,7 @@ data Lexeme
   | LxLParen
   | LxRParen
   | LxVarSym
+  | LxVarId
   | LxNum
   deriving (Eq, Show)
 
@@ -43,6 +44,7 @@ data Token
   | TkLParen AlexPosn
   | TkRParen AlexPosn
   | TkVarSym ((String, Int, OpAssoc), AlexPosn)
+  | TkVarId (String, AlexPosn)
   | TkNum (Integer, AlexPosn)
   | TkEof
   deriving (Eq, Show)
@@ -57,6 +59,7 @@ mkLx lx (pos, _, _, str) len =
       LxSep -> pure $ TkSep pos
       LxLParen -> pure $ TkLParen pos
       LxRParen -> pure $ TkRParen pos
+      LxVarId  -> pure $ TkVarId (t, pos)
       LxVarSym -> Alex $ (\s@AlexState{..} ->
                           case MA.lookup t (operators alex_ust) of
                             Just (n, asoc) -> Right (s, TkVarSym ((t, fromIntegral n, asoc), pos))
@@ -71,6 +74,7 @@ data OpAssoc
   = OpL
   | OpR
   deriving(Show,Eq)
+
 
 data AlexUserState = AlexUserState { operators :: MA.Map String (Int, OpAssoc) }
 

@@ -19,24 +19,13 @@ someFunc = do
   case runAlex s p of
     Right tk -> do
       print tk
-      print $ eval tk
+      print $ runStateT (eval tk) MA.empty
     Left e -> putStrLn e
 
-eval :: Exp -> Exp
-eval v@(Num _) =  v
-eval v@(Symbol _) = v
-eval (Apply (Func f) x) = f (eval x)
-eval (Apply (Symbol "+") ex) = Func $ \ey -> let Num y = eval ey in Num (x + y)
-  where
-    Num x = eval ex
-eval (Apply (Symbol "*") ex) = Func $ \ey -> let Num y = eval ey in Num (x * y)
-  where
-    Num x = eval ex
-eval (Apply (Symbol "^") ex) = Func $ \ey -> let Num y = eval ey in Num (x ^ y)
-  where
-    Num x = eval ex
-    
-eval (Apply e@(Apply _ _) x) = f x
-  where
-    Func f = eval e
-
+eval :: Exp -> StateT (MA.Map String Exp) (Either String) Exp
+eval v@(Num _) =  pure v
+eval (Var k) = do
+  table <- get
+  case MA.lookup k table of
+    Just v -> pure v
+    _ -> fail k
