@@ -21,6 +21,7 @@ someFunc = do
       print tk
       let env = MA.fromList
                 [ ("succ", Val . Func $ \(Val (Num x)) -> Val . Num $ x + 1)
+                , ("+", Val . Func $ \(Val (Num x)) -> Val . Func $ \(Val (Num y)) -> Val . Num $ x + y )
                 ]
       print $ eval env tk
     Left e -> putStrLn e
@@ -31,8 +32,13 @@ eval :: Environment -> Exp -> Either String Exp
 eval _ v@(Val _) = pure  v
 eval env (Var k) =
   case MA.lookup k env of
-    Just exp -> eval env exp
-    _ -> Left "not found"
+    Just exp -> pure exp
+    _ -> Left $ "not found: " <> k
+eval env (Apply (Apply (Lambda k0 l@(Lambda k1 exp)) arg0) arg1) = 
+  let
+    env' = MA.insert k0 arg0 env
+  in
+    eval env' $ Apply l arg1
 eval env (Apply (Lambda k exp) arg) =
   let
     env' = MA.insert k arg env
@@ -46,5 +52,5 @@ eval env (Apply exp@(Apply _ _) arg) = do
 eval env (Apply v@(Var _) arg) = do
   v' <- eval env v
   eval env $ Apply v' arg
-eval env (Lambda _ _) = Left "can't eval lambda"
+eval env l@(Lambda _ _) = pure l
 eval env exp = Left $ show env <> "  " <> show exp
