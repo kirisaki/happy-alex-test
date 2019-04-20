@@ -19,6 +19,8 @@ VARID   { TkVarId ($$, _) }
 ';'     { TkSep _ }
 '('     { TkLParen _ }
 ')'     { TkRParen _ }
+'\\'    { TkLambda _ }
+'->'    { TkArrow _ }
 
 %left VARSYML
 %right VARSYMR
@@ -28,16 +30,21 @@ program :: { Exp }
 program:        exp        { $1 }
 
 exp :: { Exp }
-exp: VARID                     { Var $1 }
-  |  VARSYM                    { mkVarSym $1 }
-  |  NUM                       { Num $1 }
-  |  '(' exp ')'               { $2 }
-  |  exp ' ' exp               { Apply $1 $3 }
-  |  exp ' ' exp ' ' exp       { Apply (Apply $1 $3) $5 }
-  |  exp VARSYM exp            { binop $2 $1 $3 }
-  |  exp VARSYM exp VARSYM exp { assoc $1 $2 $3 $4 $5 }
-  |  exp ' ' VARSYM ' '  exp            { binop $3 $1 $5 }
-  |  exp ' ' VARSYM ' ' exp ' ' VARSYM ' ' exp { assoc $1 $3 $5 $7 $9 }
+exp
+  : lambda                    { $1 }
+  | VARID                      { Var $1 }
+  | VARSYM                    { mkVarSym $1 }
+  | NUM                       { Val (Num $1) }
+  | '(' exp ')'               { $2 }
+  | exp exp               { Apply $1 $2 }
+  | exp exp exp       { Apply (Apply $1 $2) $3 }
+  | exp VARSYM exp            { binop $2 $1 $3 }
+  | exp VARSYM exp VARSYM exp { assoc $1 $2 $3 $4 $5 }
+
+lambda :: { Exp }
+lambda
+  : '\\' VARID '->' exp { Lambda $2 $4 }
+
 
 {
 
@@ -46,16 +53,24 @@ mkVarSym (k, _, _) = Var k
 
 data Exp
   = Apply Exp Exp
-  | Num Integer
   | Lambda String Exp
   | Var String
+  | Val Val
+
+data Val
+  = Num Integer
+  | Func (Exp -> Exp)
 
 instance Show Exp where
   show (Apply x y) = "Apply(" <> show x <> ")(" <> show y <> ")"
-  show (Num x) = "(Num " <> show x <> ")"
-  show (Lambda x exp) = "(Lambda \"" <> x <> "\"" <> show exp <> ")"
-  show (Var x) = "(Var \"" <> x <> "\")"
+  show (Lambda x exp) = "(Lambda \"" <> x <> "\" " <> show exp <> ")"
+  show (Var x) = "Var \"" <> x <> "\""
+  show (Val v) = "Val <" <> show v <> ">"
 
+instance Show Val where
+  show (Num v) = "Num " <> show v
+  show (Func _) = "Func"
+  
 binop :: (String, Int, OpAssoc) -> Exp -> Exp -> Exp
 binop (op, _, _) lhs rhs = Apply (Apply (Var op) lhs) rhs
 

@@ -19,11 +19,13 @@ $symbol = [\+\-\*\/]
 
 tokens :-
 
-  $white+                       { mkLx LxWhite }
+  $white+                       { skip }
   $digit+                       { mkLx LxNum }
   \;                            { mkLx LxSep }
   \(                            { mkLx LxLParen }
   \)                            { mkLx LxRParen }
+  \\                            { mkLx LxLambda }
+  \-\>                          { mkLx LxArrow }
   $smallalpha$alpha*            { mkLx LxVarId }
   [\=\+\-\*\/\^]                { mkLx LxVarSym }
 
@@ -36,6 +38,8 @@ data Lexeme
   | LxVarSym
   | LxVarId
   | LxNum
+  | LxLambda
+  | LxArrow
   deriving (Eq, Show)
 
 data Token
@@ -46,6 +50,8 @@ data Token
   | TkVarSym ((String, Int, OpAssoc), AlexPosn)
   | TkVarId (String, AlexPosn)
   | TkNum (Integer, AlexPosn)
+  | TkLambda AlexPosn
+  | TkArrow AlexPosn
   | TkEof
   deriving (Eq, Show)
 
@@ -60,6 +66,8 @@ mkLx lx (pos, _, _, str) len =
       LxLParen -> pure $ TkLParen pos
       LxRParen -> pure $ TkRParen pos
       LxVarId  -> pure $ TkVarId (t, pos)
+      LxLambda  -> pure $ TkLambda pos
+      LxArrow  -> pure $ TkArrow pos
       LxVarSym -> Alex $ (\s@AlexState{..} ->
                           case MA.lookup t (operators alex_ust) of
                             Just (n, asoc) -> Right (s, TkVarSym ((t, fromIntegral n, asoc), pos))

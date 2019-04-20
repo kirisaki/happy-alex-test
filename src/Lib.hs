@@ -19,13 +19,32 @@ someFunc = do
   case runAlex s p of
     Right tk -> do
       print tk
-      print $ runStateT (eval tk) MA.empty
+      let env = MA.fromList
+                [ ("succ", Val . Func $ \(Val (Num x)) -> Val . Num $ x + 1)
+                ]
+      print $ eval env tk
     Left e -> putStrLn e
 
-eval :: Exp -> StateT (MA.Map String Exp) (Either String) Exp
-eval v@(Num _) =  pure v
-eval (Var k) = do
-  table <- get
-  case MA.lookup k table of
-    Just v -> pure v
-    _ -> fail k
+type Environment = MA.Map String Exp
+
+eval :: Environment -> Exp -> Either String Exp
+eval _ v@(Val _) = pure  v
+eval env (Var k) =
+  case MA.lookup k env of
+    Just exp -> eval env exp
+    _ -> Left "not found"
+eval env (Apply (Lambda k exp) arg) =
+  let
+    env' = MA.insert k arg env
+  in
+    eval env' exp
+eval env (Apply (Val(Func f)) arg) =
+  f <$> eval env arg
+eval env (Apply exp@(Apply _ _) arg) = do
+  exp' <- eval env exp
+  eval env $ Apply exp' arg
+eval env (Apply v@(Var _) arg) = do
+  v' <- eval env v
+  eval env $ Apply v' arg
+eval env (Lambda _ _) = Left "can't eval lambda"
+eval env exp = Left $ show env <> "  " <> show exp
