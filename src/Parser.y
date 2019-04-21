@@ -22,6 +22,7 @@ VARID   { TkVarId ($$, _) }
 '\\'    { TkLambda _ }
 '->'    { TkArrow _ }
 
+%left APPLY
 
 %%
 program :: { Exp }
@@ -29,7 +30,7 @@ program:        exp        { $1 }
 
 exp :: { Exp }
 exp
-  : exp term { Apply $1 $2 }
+  : exp term %prec APPLY { Apply $1 $2 }
   | term { $1 }
   | exp VARSYM exp            { binop $2 $1 $3 }
   | exp VARSYM exp VARSYM exp { assoc $1 $2 $3 $4 $5 }

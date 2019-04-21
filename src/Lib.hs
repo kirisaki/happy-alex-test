@@ -6,10 +6,13 @@ import Lexer
 import Parser
 import Control.Monad.State
 import qualified Data.Map.Strict as MA
+import GHC.IO.Unsafe
 
 someFunc :: IO ()
 someFunc = do
-  let s = "(\\x -> \\y -> \\z -> x + y + z) 1 2 3"
+  --let s = "(\\x -> x + x) 1"
+  --let s = "(\\x -> \\y -> x + y) 1 2"
+  let s = "(\\x -> \\y -> \\z ->  x + y + z) 1 2 3"
   putStrLn s
   let ops = MA.fromList
             [ ("+", (6, OpL))
@@ -34,12 +37,7 @@ eval _ v@(Val _) = pure  v
 eval env (Var k) =
   case MA.lookup k env of
     Just exp -> pure exp
-    _ -> Left $ "not found: " <> k
-eval env (Apply (Apply (Lambda k0 l@(Lambda k1 exp)) arg0) arg1) = 
-  let
-    env' = MA.insert k0 arg0 env
-  in
-    eval env' $ Apply l arg1
+    _ -> Left $ "not found: " <> k <> " " <> show env
 eval env (Apply (Lambda k exp) arg) =
   let
     env' = MA.insert k arg env
