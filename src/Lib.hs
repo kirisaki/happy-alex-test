@@ -9,7 +9,8 @@ import qualified Data.Map.Strict as MA
 
 someFunc :: IO ()
 someFunc = do
-  s <- getLine
+  let s = "(\\x -> \\y -> \\z -> x + y + z) 1 2 3"
+  putStrLn s
   let ops = MA.fromList
             [ ("+", (6, OpL))
             , ("*", (7, OpL))

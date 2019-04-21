@@ -22,8 +22,6 @@ VARID   { TkVarId ($$, _) }
 '\\'    { TkLambda _ }
 '->'    { TkArrow _ }
 
-%left VARSYML
-%right VARSYMR
 
 %%
 program :: { Exp }
@@ -31,15 +29,25 @@ program:        exp        { $1 }
 
 exp :: { Exp }
 exp
-  : lambda                    { $1 }
-  | VARID                      { Var $1 }
-  | VARSYM                    { mkVarSym $1 }
-  | NUM                       { Val (Num $1) }
-  | '(' exp ')'               { $2 }
-  | exp exp               { Apply $1 $2 }
-  | exp exp exp       { Apply (Apply $1 $2) $3 }
+  : exp term { Apply $1 $2 }
+  | term { $1 }
   | exp VARSYM exp            { binop $2 $1 $3 }
   | exp VARSYM exp VARSYM exp { assoc $1 $2 $3 $4 $5 }
+
+term :: { Exp }
+term
+  : lambda                    { $1 }
+  | varid                      { $1 }
+  | num                       { $1 }
+  | '(' exp ')'               { $2 }
+
+varid :: { Exp }
+varid
+  : VARID { Var $1 }
+
+num :: { Exp }
+num
+  : NUM { Val (Num $1) }
 
 lambda :: { Exp }
 lambda
