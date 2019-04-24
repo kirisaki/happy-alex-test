@@ -12,10 +12,11 @@ import GHC.IO.Unsafe
 someFunc :: IO ()
 someFunc = do
   --let s = "(\\x -> x + x) 1"
-  --let s = "(\\x -> \\y -> x + y) 1 2"
-  let s = "(\\x -> \\y -> \\z -> x y z) u v w"
+  --let s = "(\\x -> \\y -> x + y) u v"
+  --let s = "(\\x -> \\y -> \\z -> x y z) u v w"
   --let s = "(\\x -> x x)(\\x -> x x)"
   --let s = "(\\x -> \\x -> \\x -> x) 1"
+  let s = "(\\x -> \\y -> \\z -> x + y) 1 2 3"
   putStrLn s
   let ops = MA.fromList
             [ ("+", (6, OpL))
@@ -34,17 +35,20 @@ subst :: Exp -> String -> Exp -> Int -> Exp
 subst e2 x e1 cnt =
   case e1 of
     Var y -> if x == y then e2 else Var y
+    Num n -> Num n
     Lambda y e ->
       Lambda y' $ subst e2 x (subst (Var y') y e (cnt + 1)) (cnt + 1)
       where
         y' = y <> "_" <> show cnt
+    Apply (Num _) _ -> error "can't apply to value"
     Apply e e' ->
       Apply (subst e2 x e $ cnt + 1) (subst e2 x e' $ cnt + 1)
 
 
 step :: Exp -> [Exp]
 step = \case
-  Var x -> []
+  Var _ -> []
+  Num _ -> []
   Lambda x e0 -> fmap (Lambda x) (step e0)
   Apply e1 e2 ->
     (case e1 of

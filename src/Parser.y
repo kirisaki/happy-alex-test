@@ -39,16 +39,16 @@ term :: { Exp }
 term
   : lambda                    { $1 }
   | varid                      { $1 }
---  | num                       { $1 }
+  | num                       { $1 }
   | '(' exp ')'               { $2 }
 
 varid :: { Exp }
 varid
   : VARID { Var $1 }
 
---num :: { Exp }
---num
---  : NUM { Val (Num $1) }
+num :: { Exp }
+num
+  : NUM { Num $ fromIntegral $1 }
 
 lambda :: { Exp }
 lambda
@@ -64,19 +64,14 @@ data Exp
   = Apply Exp Exp
   | Lambda String Exp
   | Var String
-
-data Val
-  = Num Integer
-  | Func (Exp -> Exp)
+  | Num Int
 
 instance Show Exp where
-  show (Apply x y) = "Apply(" <> show x <> ")(" <> show y <> ")"
+  show (Apply x y) = "(Apply" <> show x <> show y <> ")"
   show (Lambda x exp) = "(Lambda \"" <> x <> "\" " <> show exp <> ")"
-  show (Var x) = "Var \"" <> x <> "\""
+  show (Var x) = "(Var \"" <> x <> "\")"
+  show (Num v) = "(Num " <> show v <> ")"
 
-instance Show Val where
-  show (Num v) = "Num " <> show v
-  show (Func _) = "Func"
   
 binop :: (String, Int, OpAssoc) -> Exp -> Exp -> Exp
 binop (op, _, _) lhs rhs = Apply (Apply (Var op) lhs) rhs
