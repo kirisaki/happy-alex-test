@@ -39,16 +39,16 @@ term :: { Exp }
 term
   : lambda                    { $1 }
   | varid                      { $1 }
-  | num                       { $1 }
+--  | num                       { $1 }
   | '(' exp ')'               { $2 }
 
 varid :: { Exp }
 varid
   : VARID { Var $1 }
 
-num :: { Exp }
-num
-  : NUM { Val (Num $1) }
+--num :: { Exp }
+--num
+--  : NUM { Val (Num $1) }
 
 lambda :: { Exp }
 lambda
@@ -64,7 +64,6 @@ data Exp
   = Apply Exp Exp
   | Lambda String Exp
   | Var String
-  | Val Val
 
 data Val
   = Num Integer
@@ -74,7 +73,6 @@ instance Show Exp where
   show (Apply x y) = "Apply(" <> show x <> ")(" <> show y <> ")"
   show (Lambda x exp) = "(Lambda \"" <> x <> "\" " <> show exp <> ")"
   show (Var x) = "Var \"" <> x <> "\""
-  show (Val v) = "Val <" <> show v <> ">"
 
 instance Show Val where
   show (Num v) = "Num " <> show v
