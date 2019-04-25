@@ -8,6 +8,7 @@ import Parser
 import Control.Monad.State
 import qualified Data.Map.Strict as MA
 import qualified Data.Set as SE
+import qualified Data.List as L
 import GHC.IO.Unsafe
 
 type Context = MA.Map String Type
@@ -40,6 +41,50 @@ newTyVar :: [String] -> Either String (Type, [String])
 newTyVar (n:ns) = pure (TyVar n, ns)
 newTyVar []   = Left "no unused type variables"
 
+unify :: Constraint -> Either String [Assign]
+unify c
+  | SE.null c = pure []
+  | otherwise =
+    let
+      eq = SE.elemAt 0 c
+      c' = SE.deleteAt 0 c
+    in
+      case eq of
+        (s, t) | s == t -> unify c'
+        (TyVar x, t) | SE.notMember x (freeVars t) -> do
+                         let a = (x, t)
+                         as <- unify (assignConstraint [a] c')
+                         pure (a:as)
+        (s, TyVar x) | SE.notMember x (freeVars s) -> do
+                                let a = (x, s)
+                                as <- unify (assignConstraint [a] c')
+                                pure (a:as)
+        (TyFun s1 s2, TyFun t1 t2) ->
+          unify (SE.insert (s1, t1) (SE.insert (s2, t2) c'))
+        _ -> Left "invalid constraints"
+
+freeVars :: Type -> SE.Set String
+freeVars (TyVar x) = SE.singleton x
+freeVars TyInt = SE.empty
+freeVars (TyFun t1 t2) = SE.union (freeVars t1) (freeVars t2)
+
+assignType :: [Assign] -> Type -> Type
+assignType as t =
+  L.foldl' (flip assignType') t as
+
+assignType' :: Assign -> Type -> Type
+assignType' (y, s) t'@(TyVar x)
+  | x == y = s
+  | otherwise = t'
+assignType' _ TyInt = TyInt
+assignType' a (TyFun t1 t2) = TyFun (assignType' a t1) (assignType' a t2)
+
+assignConstraint :: [Assign] -> Constraint -> Constraint
+assignConstraint as cst =
+  L.foldl' go cst as
+  where
+    go cst' a = SE.map (\(t1, t2) -> (assignType' a t1, assignType' a t2)) cst'
+
 someFunc :: IO ()
 someFunc = do
   --let s = "(\\x -> x + x) 1"
@@ -47,7 +92,7 @@ someFunc = do
   --let s = "(\\x -> \\y -> \\z -> x y z) u v w"
   --let s = "(\\x -> x x)(\\x -> x x)"
   --let s = "(\\x -> \\x -> \\x -> x) 1"
-  let s = "(\\x -> \\y -> \\z -> 1 x y)"
+  let s = "(\\x -> \\y -> \\z -> x + y) 1 2 3"
   putStrLn s
   let ops = MA.fromList
             [ ("+", (6, OpL))
@@ -59,9 +104,11 @@ someFunc = do
   case runAlex s p of
     Right tree -> do
       print tree
-      case constraintType (MA.fromList [("+", TyFun TyInt (TyFun TyInt TyInt))]) tree names of
-        Right (t, c, ns) -> print t >> print c >> print (head ns)
-        Left e -> print e
+      let Right (t, c, ns) = constraintType (MA.fromList [("+", TyFun TyInt (TyFun TyInt TyInt))]) tree names
+      print t >> print c >> print (head ns)
+      let Right a = unify c
+      print a
+      print $ assignType a t
       --print $ subst (Lambda "x" (Apply (Var "x") (Var "y"))) "x" (Lambda "x" (Var "x")) 0
       --print $ subst (Var "x") "y" (Var "y") 0
     Left e -> putStrLn e
