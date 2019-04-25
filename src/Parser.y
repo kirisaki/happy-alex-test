@@ -2,7 +2,8 @@
 {
 module Parser where
 import Lexer
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as MA
+import qualified Data.Set as SE
 }
 
 %name parser
@@ -48,7 +49,8 @@ varid
 
 num :: { Exp }
 num
-  : NUM { Num $ fromIntegral $1 }
+  : NUM { Lit (LitInt $ fromIntegral $1) }
+
 
 lambda :: { Exp }
 lambda
@@ -64,15 +66,23 @@ data Exp
   = Apply Exp Exp
   | Lambda String Exp
   | Var String
-  | Num Int
+  | Lit Lit
+
+data Lit = LitInt Int deriving (Show)
 
 instance Show Exp where
   show (Apply x y) = "(Apply" <> show x <> show y <> ")"
   show (Lambda x exp) = "(Lambda \"" <> x <> "\" " <> show exp <> ")"
   show (Var x) = "(Var \"" <> x <> "\")"
-  show (Num v) = "(Num " <> show v <> ")"
+  show (Lit v) = "(Lit " <> show v <> ")"
 
-  
+data Type
+  = TyVar String
+  | TyInt
+  | TyFun Type Type
+  deriving (Show, Eq, Ord)
+
+
 binop :: (String, Int, OpAssoc) -> Exp -> Exp -> Exp
 binop (op, _, _) lhs rhs = Apply (Apply (Var op) lhs) rhs
 
