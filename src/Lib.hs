@@ -1,15 +1,19 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 module Lib
     ( someFunc
     ) where
 
 import Lexer
 import Parser
+import Control.Monad
 import Control.Monad.State
+import Control.Applicative
 import qualified Data.Map.Strict as MA
 import qualified Data.Set as SE
 import qualified Data.List as L
 import GHC.IO.Unsafe
+import Debug.Trace
 
 type Context = MA.Map String Type
 
@@ -91,8 +95,8 @@ someFunc = do
   --let s = "(\\x -> \\y -> x + y) u v"
   --let s = "(\\x -> \\y -> \\z -> x y z) u v w"
   --let s = "(\\x -> x x)(\\x -> x x)"
-  --let s = "(\\x -> \\x -> \\x -> x) 1"
-  let s = "(\\x -> \\y -> \\z -> x + y) 1 2 3"
+  --let s = "(\\x -> \\x -> x) 1 2"
+  let s = "(\\x -> \\x -> \\x -> x + x + x) 1 2 3"
   putStrLn s
   let ops = MA.fromList
             [ ("+", (6, OpL))
@@ -109,38 +113,51 @@ someFunc = do
       let Right a = unify c
       print a
       print $ assignType a t
+      print $ runStateT (reduce tree) (Env 0 (MA.fromList [("+", Var "+")]))
       --print $ subst (Lambda "x" (Apply (Var "x") (Var "y"))) "x" (Lambda "x" (Var "x")) 0
       --print $ subst (Var "x") "y" (Var "y") 0
     Left e -> putStrLn e
 
-subst :: Exp -> String -> Exp -> Int -> Exp
-subst e2 x e1 cnt =
+data Env = Env
+  { depth :: Int
+  , vars :: MA.Map String Exp
+  } deriving (Show)
+
+type Eval = StateT Env (Either String)
+
+subst :: Exp -> String -> Exp -> Eval Exp
+subst e2 x e1 =
   case e1 of
-    Var y -> if x == y then e2 else Var y
-    Lit n -> Lit n
-    Lambda y e ->
-      Lambda y' $ subst e2 x (subst (Var y') y e (cnt + 1)) (cnt + 1)
-      where
-        y' = y <> "_" <> show cnt
-    Apply (Lit _) _ -> error "can't apply to value"
+    Var y -> pure $ if x == y then e2 else Var y
+    Lit n -> pure $ Lit n
+    Lambda y e -> do
+      cnt <- depth <$> get
+      modify (\s -> s { depth = cnt + 1 })
+      let y' = y <> "_" <> show cnt
+      e1' <- subst (Var y') y e
+      Lambda y' <$> subst e2 x e1'
+    Apply (Lit _) _ -> fail "can't apply to value"
     Apply e e' ->
-      Apply (subst e2 x e $ cnt + 1) (subst e2 x e' $ cnt + 1)
+      liftA2 Apply (subst e2 x e) (subst e2 x e')
 
 
-step :: Exp -> [Exp]
+step :: Exp -> Eval [Exp]
 step = \case
-  Var _ -> []
-  Lit _ -> []
-  Lambda x e0 -> fmap (Lambda x) (step e0)
+  Var _ -> pure []
+  Lit _ -> pure []
+  Lambda x e0 -> fmap (fmap (Lambda x)) (step e0)
   Apply e1 e2 ->
-    (case e1 of
-      Lambda x e0 -> [subst e2 x e0 0]
-      _ -> []) ++
-    (fmap (\e1' -> Apply e1' e2) (step e1)) ++
-    (fmap (Apply e1) (step e2))
+    do
+      es1 <- sequence $ case e1 of
+              Lambda x e0 -> [subst e2 x e0]
+              _ -> []
+      es2 <- (fmap (fmap (\e1' -> Apply e1' e2)) (step e1))
+      es3 <- (fmap (fmap (Apply e1)) (step e2))
+      pure $ es1 <> es2 <> es3
 
-reduce :: Exp -> Exp
+reduce :: Exp -> Eval Exp
 reduce e =
-  case step e of
-    [] -> e
-    e':_ -> reduce e'
+  step e >>= \case
+  [] -> pure e
+  e':_ -> reduce e'
+

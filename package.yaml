@@ -29,7 +29,7 @@ library:
   source-dirs: src
 
 executables:
-  happy-alex-test:
+  prototype-A:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -40,7 +40,7 @@ executables:
     - happy-alex-test
 
 tests:
-  happy-alex-test-test:
+  prototype-A-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
