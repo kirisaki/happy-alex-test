@@ -128,6 +128,11 @@ someFunc = do
                                                 [ ("+", ValFunc add_)
                                                 ]))
   print t1'
+
+  let Right (res, _) = runStateT (eval t1') (Env 0 (MA.fromList
+                                                [ ("+", ValFunc add_)
+                                                ]))
+  print res
   --print $ subst (Lambda "x" (Apply (Var "x") (Var "y"))) "x" (Lambda "x" (Var "x")) 0
   --print $ subst (Var "x") "y" (Var "y") 0
 
@@ -140,6 +145,12 @@ data Env = Env
   } deriving (Show)
 
 type Eval = StateT Env (Either String)
+
+eval :: Exp -> Eval Exp
+eval = \case
+  x@(Val _) -> pure x
+  Apply (Val (ValFunc f)) (Val x) -> pure . Val $ f x
+  Apply f x -> liftA2 Apply (eval f) (eval x) >>= eval
 
 subst :: Exp -> String -> Exp -> Eval Exp
 subst e2 x e1 =
