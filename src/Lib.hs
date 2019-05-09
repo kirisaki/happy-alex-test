@@ -23,7 +23,7 @@ type Assign = (String, Type)
 
 
 constraintType :: Context -> Exp -> [String] -> Either String (Type, Constraint, [String])
-constraintType _ (Lit (LitInt _)) names = pure (TyInt, SE.empty, names)
+constraintType _ (Val (ValInt _)) names = pure (TyInt, SE.empty, names)
 constraintType ctx (Var x) names = do
   typ <- case MA.lookup x ctx of
     Just typ' -> pure typ'
@@ -96,31 +96,47 @@ someFunc = do
   --let s = "(\\x -> \\y -> \\z -> x y z) u v w"
   --let s = "(\\x -> x x)(\\x -> x x)"
   --let s = "(\\x -> \\x -> x) 1 2"
-  let s = "(\\x -> \\x -> \\x -> x + x + x) 1 2 3"
-  putStrLn s
+  let s0 = "(\\x -> \\y -> x + y)"
+  let s1 = "(\\x -> \\x -> \\x -> x + x) 1 2 3"
   let ops = MA.fromList
             [ ("+", (6, OpL))
             , ("*", (7, OpL))
             , ("^", (8, OpR))
             ]
   let p = alexSetUserState (AlexUserState ops) >> parser
+  let Right t0 = runAlex s0 p
+  let Right t1 = runAlex s1 p
+  print t0
+  print t1
+
   let names = show <$> [1 :: Int ..]
-  case runAlex s p of
-    Right tree -> do
-      print tree
-      let Right (t, c, ns) = constraintType (MA.fromList [("+", TyFun TyInt (TyFun TyInt TyInt))]) tree names
-      print t >> print c >> print (head ns)
-      let Right a = unify c
-      print a
-      print $ assignType a t
-      print $ runStateT (reduce tree) (Env 0 (MA.fromList [("+", Var "+")]))
-      --print $ subst (Lambda "x" (Apply (Var "x") (Var "y"))) "x" (Lambda "x" (Var "x")) 0
-      --print $ subst (Var "x") "y" (Var "y") 0
-    Left e -> putStrLn e
+  let Right (ty0, c0, ns0) = constraintType (MA.fromList
+                                             [ ("+", TyFun TyInt (TyFun TyInt TyInt))
+                                             , ("f", TyFun TyInt TyInt)
+                                             ]) t0 names
+  print ty0 >> print c0 >> print (head ns0)
+  let Right a0 = unify c0
+  print a0
+  print $ assignType a0 ty0
+  putStrLn ""
+
+  let Right (t0', _) = runStateT (reduce t0) (Env 0 (MA.fromList [("+", ValFunc add_)]))
+  print t0'
+
+  putStrLn ""
+  let Right (t1', _) = runStateT (reduce t1) (Env 0 (MA.fromList
+                                                [ ("+", ValFunc add_)
+                                                ]))
+  print t1'
+  --print $ subst (Lambda "x" (Apply (Var "x") (Var "y"))) "x" (Lambda "x" (Var "x")) 0
+  --print $ subst (Var "x") "y" (Var "y") 0
+
+add_ :: Val -> Val
+add_ (ValInt x) = ValFunc (\(ValInt y) -> ValInt $ x + y)
 
 data Env = Env
   { depth :: Int
-  , vars :: MA.Map String Exp
+  , vars :: MA.Map String Val
   } deriving (Show)
 
 type Eval = StateT Env (Either String)
@@ -128,15 +144,22 @@ type Eval = StateT Env (Either String)
 subst :: Exp -> String -> Exp -> Eval Exp
 subst e2 x e1 =
   case e1 of
-    Var y -> pure $ if x == y then e2 else Var y
-    Lit n -> pure $ Lit n
+    Var y ->
+      if x == y
+      then pure e2
+      --else pure $ Var y
+      else do
+        kv <- vars <$> get
+        pure $ case MA.lookup y kv of
+          Just v -> Val v
+          Nothing -> Var y
+    Val n -> pure $ Val n
     Lambda y e -> do
       cnt <- depth <$> get
       modify (\s -> s { depth = cnt + 1 })
       let y' = y <> "_" <> show cnt
       e1' <- subst (Var y') y e
       Lambda y' <$> subst e2 x e1'
-    Apply (Lit _) _ -> fail "can't apply to value"
     Apply e e' ->
       liftA2 Apply (subst e2 x e) (subst e2 x e')
 
@@ -144,7 +167,7 @@ subst e2 x e1 =
 step :: Exp -> Eval [Exp]
 step = \case
   Var _ -> pure []
-  Lit _ -> pure []
+  Val _ -> pure []
   Lambda x e0 -> fmap (fmap (Lambda x)) (step e0)
   Apply e1 e2 ->
     do
@@ -157,7 +180,8 @@ step = \case
 
 reduce :: Exp -> Eval Exp
 reduce e =
-  step e >>= \case
+  step (traceShowId e) >>= \case
   [] -> pure e
   e':_ -> reduce e'
+
 

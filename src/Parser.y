@@ -49,7 +49,7 @@ varid
 
 num :: { Exp }
 num
-  : NUM { Lit (LitInt $ fromIntegral $1) }
+  : NUM { Val (ValInt $ fromIntegral $1) }
 
 
 lambda :: { Exp }
@@ -62,19 +62,27 @@ lambda
 mkVarSym :: (String, Int, OpAssoc) -> Exp
 mkVarSym (k, _, _) = Var k
 
+data Val
+  = ValInt Int
+  | ValFunc (Val -> Val)
+
+instance Show Val where
+  show (ValInt x) = show x
+  show (ValFunc _) = "<Func>"
+
 data Exp
   = Apply Exp Exp
   | Lambda String Exp
   | Var String
-  | Lit Lit
+  | Val Val
 
-data Lit = LitInt Int deriving (Show)
+
 
 instance Show Exp where
   show (Apply x y) = "(Apply" <> show x <> show y <> ")"
   show (Lambda x exp) = "(Lambda \"" <> x <> "\" " <> show exp <> ")"
   show (Var x) = "(Var \"" <> x <> "\")"
-  show (Lit v) = "(Lit " <> show v <> ")"
+  show (Val v) = "(Val " <> show v <> ")"
 
 data Type
   = TyVar String
